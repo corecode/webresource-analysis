@@ -1,0 +1,289 @@
+what data to extract:
+
+{"method":"Network.requestWillBeSent","result":{"requestId":"30577.1","frameId":"30577.2","loaderId":"30577.1","documentURL":"http://www.zain.com/","request":{"url":"http://www.zain.com/","method":"GET","headers":{"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79 Safari/535.11","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}},"timestamp":1333314083.644283,"initiator":{"type":"other"},"stackTrace":[]}}
+
+{"method":"Timeline.eventRecorded","result":{"record":{"startTime":1333314084058.4731,"data":{"requestId":"30577.1","statusCode":200,"mimeType":"text/html"},"children":[],"endTime":1333314084058.483,"type":"ResourceReceiveResponse","usedHeapSize":698160,"totalHeapSize":8310016}}}
+
+{"method":"Network.responseReceived","result":{"requestId":"30577.1","frameId":"30577.2","loaderId":"30577.1","timestamp":1333314084.058616,"type":"Document","response":{"url":"http://www.zain.com/","status":200,"statusText":"OK","mimeType":"text/html","connectionReused":false,"connectionId":12,"fromDiskCache":false,"timing":{"requestTime":1333314083.649673,"proxyStart":-1,"proxyEnd":-1,"dnsStart":1,"dnsEnd":134,"connectStart":1,"connectEnd":270,"sslStart":-1,"sslEnd":-1,"sendStart":270,"sendEnd":270,"receiveHeadersEnd":407},"headers":{"Date":"Sun, 01 Apr 2012 21:01:23 GMT","Content-Encoding":"gzip","Connection":"close","Content-Length":"321","AF_TTP":"D=710","Last-Modified":"Mon, 22 Aug 2011 12:33:00 GMT","Server":"Apache/2.0.52","ETag":"\"107887-1b4-478f1700\"","Vary":"Accept-Encoding,User-Agent","Content-Type":"text/html; charset=UTF-8","Accept-Ranges":"bytes"},"headersText":"HTTP/1.1 200 OK\r\nDate: Sun, 01 Apr 2012 21:01:23 GMT\r\nServer: Apache/2.0.52\r\nLast-Modified: Mon, 22 Aug 2011 12:33:00 GMT\r\nETag: \"107887-1b4-478f1700\"\r\nAccept-Ranges: bytes\r\nVary: Accept-Encoding,User-Agent\r\nContent-Encoding: gzip\r\nAF_TTP: D=710\r\nContent-Length: 321\r\nConnection: close\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n","requestHeaders":{"Accept-Encoding":"gzip,deflate,sdch","Accept-Language":"en-US,en;q=0.8","Connection":"keep-alive","Accept-Charset":"ISO-8859-1,utf-8;q=0.7,*;q=0.3","Host":"www.zain.com","User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79 Safari/535.11","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},"requestHeadersText":"GET / HTTP/1.1\r\nHost: www.zain.com\r\nConnection: keep-alive\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79 Safari/535.11\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Encoding: gzip,deflate,sdch\r\nAccept-Language: en-US,en;q=0.8\r\nAccept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3\r\n\r\n"}}}
+
+{"method":"Page.frameNavigated","result":{"frame":{"id":"30577.2","url":"http://www.zain.com/","loaderId":"30577.1","mimeType":"text/html"}}}
+
+{"method":"Network.dataReceived","result":{"requestId":"30577.1","timestamp":1333314084.080354,"dataLength":436,"encodedDataLength":650}}
+
+{"method":"Timeline.eventRecorded","result":{"record":{"startTime":1333314084082.9211,"data":{"requestId":"30577.1","didFail":false,"networkTime":1333314084059.3481},"type":"ResourceFinish","usedHeapSize":1633768,"totalHeapSize":9341952}}}
+{"method":"Network.loadingFinished","result":{"requestId":"30577.1","timestamp":1333314084.059348}}
+
+{"method":"Network.loadingFinished","result":{"requestId":"30577.1","timestamp":1333314084.059348}}
+
+
+
+Notifications
+
+Network.dataReceived
+
+{
+"method": "Network.dataReceived",
+"params": {
+  "requestId": <RequestId>,
+  "timestamp": <Timestamp>,
+  "dataLength": <integer>,
+  "encodedDataLength": <integer> 
+}
+}
+Fired when data chunk was received over the network.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+timestamp ( Timestamp )
+Timestamp.
+dataLength ( integer )
+Data chunk length.
+encodedDataLength ( integer )
+Actual bytes received (might be less than dataLength for compressed encodings).
+
+Network.loadingFailed
+
+{
+"method": "Network.loadingFailed",
+"params": {
+  "requestId": <RequestId>,
+  "timestamp": <Timestamp>,
+  "errorText": <string>,
+  "canceled": <boolean> 
+}
+}
+Fired when HTTP request has failed to load.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+timestamp ( Timestamp )
+Timestamp.
+errorText ( string )
+User friendly error message.
+canceled ( optional boolean )
+True if loading was canceled.
+
+
+Network.loadingFinished
+
+{
+"method": "Network.loadingFinished",
+"params": {
+  "requestId": <RequestId>,
+  "timestamp": <Timestamp> 
+}
+}
+Fired when HTTP request has finished loading.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+timestamp ( Timestamp )
+Timestamp.
+
+
+Network.requestServedFromCache
+
+{
+"method": "Network.requestServedFromCache",
+"params": {
+  "requestId": <RequestId> 
+}
+}
+Fired if request ended up loading from cache.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+
+
+Network.requestServedFromMemoryCache
+
+{
+"method": "Network.requestServedFromMemoryCache",
+"params": {
+  "requestId": <RequestId>,
+  "loaderId": <LoaderId>,
+  "documentURL": <string>,
+  "timestamp": <Timestamp>,
+  "initiator": <Initiator>,
+  "resource": <CachedResource> 
+}
+}
+Fired when HTTP request has been served from memory cache.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+loaderId ( LoaderId )
+Loader identifier.
+documentURL ( string )
+URL of the document this request is loaded for.
+timestamp ( Timestamp )
+Timestamp.
+initiator ( Initiator )
+Request initiator.
+resource ( CachedResource )
+Cached resource data.
+
+
+Network.requestWillBeSent
+
+{
+"method": "Network.requestWillBeSent",
+"params": {
+  "requestId": <RequestId>,
+  "loaderId": <LoaderId>,
+  "documentURL": <string>,
+  "request": <Request>,
+  "timestamp": <Timestamp>,
+  "initiator": <Initiator>,
+  "stackTrace": <Console.StackTrace>,
+  "redirectResponse": <Response> 
+}
+}
+Fired when page is about to send HTTP request.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+loaderId ( LoaderId )
+Loader identifier.
+documentURL ( string )
+URL of the document this request is loaded for.
+request ( Request )
+Request data.
+timestamp ( Timestamp )
+Timestamp.
+initiator ( Initiator )
+Request initiator.
+stackTrace ( optional Console.StackTrace )
+JavaScript stack trace upon issuing this request.
+redirectResponse ( optional Response )
+Redirect response data.
+
+
+Network.responseReceived
+
+{
+"method": "Network.responseReceived",
+"params": {
+  "requestId": <RequestId>,
+  "timestamp": <Timestamp>,
+  "type": <Page.ResourceType>,
+  "response": <Response> 
+}
+}
+Fired when HTTP response is available.
+
+Parameters
+
+requestId ( RequestId )
+Request identifier.
+timestamp ( Timestamp )
+Timestamp.
+type ( Page.ResourceType )
+Resource type.
+response ( Response )
+Response data.
+
+
+Types
+
+CachedResource: object
+
+bodySize ( number )
+Cached response body size.
+response ( optional Response )
+Cached response data.
+type ( Page.ResourceType )
+Type of this resource.
+url ( string )
+Resource URL.
+Headers: object
+
+Initiator: object
+
+lineNumber ( optional number )
+Initiator line number, set for Parser type only.
+stackTrace ( optional Console.StackTrace )
+Initiator JavaScript stack trace, set for Script only.
+type ( enumerated string [ "other" , "parser" , "script" ] )
+Type of this initiator.
+url ( optional string )
+Initiator URL, set for Parser type only.
+LoaderId: string
+
+Request: object
+
+headers ( Headers )
+HTTP request headers.
+method ( string )
+HTTP request method.
+postData ( optional string )
+HTTP POST request data.
+url ( string )
+Request URL.
+RequestId: string
+
+ResourceTiming: object
+
+connectEnd ( number )
+Connected to the remote host.
+connectStart ( number )
+Started connecting to the remote host.
+dnsEnd ( number )
+Finished DNS address resolve.
+dnsStart ( number )
+Started DNS address resolve.
+proxyEnd ( number )
+Finished resolving proxy.
+proxyStart ( number )
+Started resolving proxy.
+receiveHeadersEnd ( number )
+Finished receiving response headers.
+requestTime ( number )
+Timing's requestTime is a baseline in seconds, while the other numbers are ticks in milliseconds relatively to this requestTime.
+sendEnd ( number )
+Finished sending request.
+sendStart ( number )
+Started sending request.
+sslEnd ( number )
+Finished SSL handshake.
+sslStart ( number )
+Started SSL handshake.
+Response: object
+
+connectionId ( number )
+Physical connection id that was actually used for this request.
+connectionReused ( boolean )
+Specifies whether physical connection was actually reused for this request.
+fromDiskCache ( optional boolean )
+Specifies that the request was served from the disk cache.
+headers ( Headers )
+HTTP response headers.
+headersText ( optional string )
+HTTP response headers text.
+mimeType ( string )
+Resource mimeType as determined by the browser.
+requestHeaders ( optional Headers )
+Refined HTTP request headers that were actually transmitted over the network.
+requestHeadersText ( optional string )
+HTTP request headers text.
+status ( number )
+HTTP response status code.
+statusText ( string )
+HTTP response status text.
+timing ( optional ResourceTiming )
+Timing information for the given request.
+url ( string )
+Response URL.
+Timestamp: number
