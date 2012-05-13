@@ -49,7 +49,7 @@ class Domain
       :domainId => @domainid,
       :requestId => d['requestId'],
       :timestamp => d['timestamp'],
-      :url => url,
+      :url => url.gsub(/[\\"]/, '\\\1'),
       :initiator => initiator,
       :fromCache => from_cache ? 1 : 0,
     }
@@ -57,8 +57,25 @@ class Domain
   end
 
   def process_response(r, d, did_redirect=false)
-    host = URI.parse(URI.encode(d['url']))
-    host = "#{host.host}:#{host.port}"
+    uri = d['url']
+    m = %r{(.*?)://([^:/]*?)(:\d+)?}.match(uri)
+    if m
+      host = m[2]
+      if m[3]
+        host += m[3]
+      else
+        case m[1]
+        when "http"
+          host += ":80"
+        when "https"
+          host += ":443"
+        else
+          host = m[1] + "://" + m[2]
+        end
+      end
+    else
+      host = nil
+    end
     h = {
       :domainId => @domainid,
       :requestId => r['requestId'],
