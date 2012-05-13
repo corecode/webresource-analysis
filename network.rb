@@ -45,11 +45,17 @@ class Domain
                 else
                   1
                 end
+    if url.match(%r{[^:]+://})
+      url = url.gsub(/[\\"]/, '\\\1')
+    else
+      # some data or about url
+      url = nil
+    end
     h = {
       :domainId => @domainid,
       :requestId => d['requestId'],
       :timestamp => d['timestamp'],
-      :url => url.gsub(/[\\"]/, '\\\1'),
+      :url => url,
       :initiator => initiator,
       :fromCache => from_cache ? 1 : 0,
     }
@@ -58,11 +64,11 @@ class Domain
 
   def process_response(r, d, did_redirect=false)
     uri = d['url']
-    m = %r{(.*?)://([^:/]*?)(:\d+)?}.match(uri)
-    if m
-      host = m[2]
-      if m[3]
-        host += m[3]
+    m = %r{([^:]*?):(//)?([^:/]*)(:\d+)?}.match(uri)
+    if m && m[2]
+      host = m[3]
+      if m[4]
+        host += m[4]
       else
         case m[1]
         when "http"
@@ -70,7 +76,7 @@ class Domain
         when "https"
           host += ":443"
         else
-          host = m[1] + "://" + m[2]
+          host = m[1] + "://" + m[3]
         end
       end
     else
