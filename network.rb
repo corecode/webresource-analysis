@@ -57,7 +57,7 @@ class Domain
   end
 
   def process_response(r, d, did_redirect=false)
-    host = URI.parse(d['url'])
+    host = URI.parse(URI.encode(d['url']))
     host = "#{host.host}:#{host.port}"
     h = {
       :domainId => @domainid,
