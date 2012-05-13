@@ -8,6 +8,7 @@ class Scheduler
   end
 
   def run(dir=".")
+    STDOUT.sync = true
     files = Dir.glob(File.join(dir, '*.log'))
     kids = []
     files.each_slice(files.size / @concurrency).each_with_index do |l, p_id|
