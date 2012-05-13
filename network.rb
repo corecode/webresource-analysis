@@ -24,11 +24,11 @@ class Domain
       r = p['redirectResponse']
       s = ""
       if r
-        s = process_response(r, true) + "\n"
+        s = process_response(p, r, true) + "\n"
       end
       s + process_initiator(p['request']['url'], p)
     when "Network.responseReceived"
-      process_response p
+      process_response p, p['response']
     when "Network.dataReceived"
       process_data p
     when "Network.requestServedFromMemoryCache"
@@ -56,8 +56,7 @@ class Domain
     do_insert('initiator', h)
   end
 
-  def process_response(r, did_redirect=false)
-    d = r['response']
+  def process_response(r, d, did_redirect=false)
     host = URI.parse(d['url'])
     host = "#{host.host}:#{host.port}"
     h = {
