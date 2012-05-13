@@ -18,8 +18,10 @@ what data to extract:
 
 
 Notifications
+=============
 
 Network.dataReceived
+--------------------
 
 {
 "method": "Network.dataReceived",
@@ -32,7 +34,7 @@ Network.dataReceived
 }
 Fired when data chunk was received over the network.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -44,6 +46,7 @@ encodedDataLength ( integer )
 Actual bytes received (might be less than dataLength for compressed encodings).
 
 Network.loadingFailed
+---------------------
 
 {
 "method": "Network.loadingFailed",
@@ -56,7 +59,7 @@ Network.loadingFailed
 }
 Fired when HTTP request has failed to load.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -69,6 +72,7 @@ True if loading was canceled.
 
 
 Network.loadingFinished
+-----------------------
 
 {
 "method": "Network.loadingFinished",
@@ -79,7 +83,7 @@ Network.loadingFinished
 }
 Fired when HTTP request has finished loading.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -88,6 +92,7 @@ Timestamp.
 
 
 Network.requestServedFromCache
+------------------------------
 
 {
 "method": "Network.requestServedFromCache",
@@ -97,13 +102,14 @@ Network.requestServedFromCache
 }
 Fired if request ended up loading from cache.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
 
 
 Network.requestServedFromMemoryCache
+------------------------------------
 
 {
 "method": "Network.requestServedFromMemoryCache",
@@ -118,7 +124,7 @@ Network.requestServedFromMemoryCache
 }
 Fired when HTTP request has been served from memory cache.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -135,6 +141,7 @@ Cached resource data.
 
 
 Network.requestWillBeSent
+-------------------------
 
 {
 "method": "Network.requestWillBeSent",
@@ -151,7 +158,7 @@ Network.requestWillBeSent
 }
 Fired when page is about to send HTTP request.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -172,6 +179,7 @@ Redirect response data.
 
 
 Network.responseReceived
+------------------------
 
 {
 "method": "Network.responseReceived",
@@ -184,7 +192,7 @@ Network.responseReceived
 }
 Fired when HTTP response is available.
 
-Parameters
+=== Parameters
 
 requestId ( RequestId )
 Request identifier.
@@ -197,8 +205,10 @@ Response data.
 
 
 Types
+=====
 
 CachedResource: object
+----------------------
 
 bodySize ( number )
 Cached response body size.
@@ -211,6 +221,7 @@ Resource URL.
 Headers: object
 
 Initiator: object
+-----------------
 
 lineNumber ( optional number )
 Initiator line number, set for Parser type only.
@@ -223,6 +234,7 @@ Initiator URL, set for Parser type only.
 LoaderId: string
 
 Request: object
+---------------
 
 headers ( Headers )
 HTTP request headers.
@@ -235,6 +247,7 @@ Request URL.
 RequestId: string
 
 ResourceTiming: object
+----------------------
 
 connectEnd ( number )
 Connected to the remote host.
@@ -260,7 +273,9 @@ sslEnd ( number )
 Finished SSL handshake.
 sslStart ( number )
 Started SSL handshake.
+
 Response: object
+----------------
 
 connectionId ( number )
 Physical connection id that was actually used for this request.
@@ -287,3 +302,42 @@ Timing information for the given request.
 url ( string )
 Response URL.
 Timestamp: number
+
+
+Schema
+======
+
+Requests
+--------
+
+- take from response
+- take from request if it has a redirectresponse
+
+domainId (generate)
+requestId
+timestamp
+host (generate from URL)
+connectionId
+connectionReused
+mimeType
+status
+didRedirect
+
+Initiators
+-----------
+domainId
+requestId
+timestamp
+url
+initiator (take from request)
+fromCache
+
+
+Transfers
+---------
+
+domainId (generate)
+requestId
+timestamp
+dataLength
+encodedDataLength
