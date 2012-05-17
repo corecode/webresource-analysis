@@ -2,15 +2,15 @@ require 'json'
 require 'uri'
 
 class Domain
-  def initialize(file, domainid)
+  def initialize(file, id, printer)
+    @domainid = id
     @data = File.readlines(file)
-    @domainid = domainid
+    @printer = printer
   end
 
   def process
     @data.each do |l|
-      r = process_line(l)
-      puts r if r
+      process_line(l)
     end
   end
 
@@ -22,21 +22,20 @@ class Domain
     case d['method']
     when "Network.requestWillBeSent"
       r = p['redirectResponse']
-      s = ""
       if r
-        s = process_response(p, r, true) + "\n"
+        request(p, r, true) + "\n"
       end
-      s + process_initiator(p['request']['url'], p)
+      resource(p['request']['url'], p)
     when "Network.responseReceived"
-      process_response p, p['response']
+      request p, p['response']
     when "Network.dataReceived"
-      process_data p
+      transfer p
     when "Network.requestServedFromMemoryCache"
-      process_initiator p['resource']['url'], p, true
+      resource p['resource']['url'], p, true
     end
   end
 
-  def process_initiator(url, d, from_cache=false)
+  def resource(url, d, from_cache=false)
     initiator = case d['initiator']['type']
                 when 'script'
                   2
@@ -57,12 +56,12 @@ class Domain
       :timestamp => d['timestamp'],
       :url => url,
       :initiator => initiator,
-      :fromCache => from_cache ? 1 : 0,
+      :fromCache => from_cache,
     }
-    do_insert('initiator', h)
+    @printer.resource h
   end
 
-  def process_response(r, d, did_redirect=false)
+  def request(r, d, did_redirect=false)
     uri = d['url']
     m = %r{([^:]*?):(//)?([^:/]*)(:\d+)?}.match(uri)
     if m && m[2]
@@ -88,15 +87,15 @@ class Domain
       :timestamp => r['timestamp'],
       :host => host,
       :connectionId => d['connectionId'],
-      :connectionReused => d['connectionReused'] == "true" ? 1 : 0,
+      :connectionReused => d['connectionReused'],
       :mimeType => d['mimeType'],
       :status => d['status'],
-      :didRedirect => did_redirect ? 1 : 0,
+      :didRedirect => did_redirect,
     }
-    do_insert('request', h)
+    @printer.request h
   end
 
-  def process_data(d)
+  def transfer(d)
     h = {
       :domainId => @domainid,
       :requestId => d['requestId'],
@@ -104,33 +103,6 @@ class Domain
       :dataLength => d['dataLength'],
       :encodedDataLength => d['encodedDataLength'],
     }
-    do_insert('transfer', h)
-  end
-
-  def do_insert(table, data)
-    'INSERT INTO %s (%s) VALUES (%s);' %
-      [
-       table,
-       data.keys.join(', '),
-       data.values.map { |d|
-         case d
-         when Numeric
-           d.to_s
-         when nil
-           'NULL'
-         else
-           "\"#{d}\""
-         end
-       }.join(', ')
-      ]
-  end
-end
-
-if $0 == __FILE__
-  id = 0
-  ARGV.each do |f|
-    id += 1
-    d = Domain.new(f, id)
-    d.process
+    @printer.transfer h
   end
 end
