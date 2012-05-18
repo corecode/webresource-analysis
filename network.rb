@@ -2,11 +2,10 @@ require 'json'
 require 'uri'
 
 class Domain
-  def initialize(file, id)
+  def initialize(file)
     @file = file
     @data = File.readlines(file)
-    @domainid = id
-    @requests = Hash.new{|h,k| h[k] = {:domainId => @domainid}}
+    @requests = Hash.new{|h,k| h[k] = {}}
     @res = []
   end
 
