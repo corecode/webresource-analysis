@@ -4,31 +4,19 @@ require 'network'
 
 class SqlPrint
   Schema = <<-ends
-CREATE TABLE request (
+CREATE TABLE resource (
        domainId        INTEGER,
        requestId       TEXT,
-       timestamp       REAL,
        url             TEXT,
+       host            TEXT,
        initiator       INTEGER,
-       fromCache       INTEGER);
-
-CREATE TABLE resource (
-       domainId         INTEGER,
-       requestId        TEXT,
-       timestamp        REAL,
-       host             TEXT,
-       connectionId     INTEGER,
-       connectionReused INTEGER,
-       mimeType         TEXT,
-       status           INTEGER,
-       didRedirect      INTEGER);
-
-CREATE TABLE transfer (
-       domainId         INTEGER,
-       requestId        TEXT,
-       timestamp        REAL,
-       dataLength       INTEGER,
-       encodedDataLength INTEGER);
+       cached          INTEGER,
+       dataLength      INTEGER,
+       encodedDataLength INTEGER,
+       mimeType        TEXT,
+       status          INTEGER,
+       redirect        INTEGER
+);
 ends
   
   def initialize(outf=$stdout)
@@ -41,22 +29,15 @@ ends
     @outf.puts "COMMIT TRANSACTION;"
   end
 
-  def resource(data)
-    insert('resource', data)
-  end
-
-  def request(data)
-    insert('request', data)
-  end
-
-  def transfer(data)
-    insert('transfer', data)
-  end
-
-  def insert(table, data)
-    @outf.puts 'INSERT INTO %s (%s) VALUES (%s);' %
+  def <<(data)
+    if Array === data
+      data.each do |d|
+        self.<< d
+      end
+      return
+    end
+    @outf.puts 'INSERT INTO resource (%s) VALUES (%s);' %
       [
-       table,
        data.keys.join(', '),
        data.values.map { |d|
          case d
@@ -77,8 +58,8 @@ if $0 == __FILE__
   p = SqlPrint.new
   ARGV.each do |f|
     id += 1
-    d = Domain.new(f, id, p)
-    d.process
+    d = Domain.new(f, id)
+    p << d.process
   end
   p.finish
 end

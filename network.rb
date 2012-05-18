@@ -2,68 +2,107 @@ require 'json'
 require 'uri'
 
 class Domain
-  def initialize(file, id, printer)
-    @domainid = id
+  def initialize(file, id)
+    @file = file
     @data = File.readlines(file)
-    @printer = printer
+    @domainid = id
+    @requests = Hash.new{|h,k| h[k] = {:domainId => @domainid}}
+    @res = []
   end
 
   def process
-    @data.each do |l|
-      process_line(l)
+    @data.each_with_index do |l, i|
+      begin
+        process_line(l)
+      rescue Exception => e
+        $stderr.puts "Error processing #{@file}:#{i+1}: #{l}"
+        $stderr.puts e
+        $stderr.puts e.backtrace
+      end
     end
+    @res.concat @requests.values
+    @requests.clear
+    @res
   end
 
   def process_line(l)
     d = JSON l
-    require 'pp'
     p = d['result']
     return unless p
     case d['method']
     when "Network.requestWillBeSent"
-      r = p['redirectResponse']
-      if r
-        request(p, r, true) + "\n"
-      end
-      resource(p['request']['url'], p)
+      do_request(p['request']['url'], p)
     when "Network.responseReceived"
-      request p, p['response']
+      do_response p
     when "Network.dataReceived"
-      transfer p
+      do_data p
     when "Network.requestServedFromMemoryCache"
-      resource p['resource']['url'], p, true
+      res = p['resource']
+      do_request res['url'], p, true
+      do_response p, res
     end
   end
 
-  def resource(url, d, from_cache=false)
-    initiator = case d['initiator']['type']
-                when 'script'
-                  2
-                when 'parser'
-                  0
-                else
-                  1
-                end
-    if url.match(%r{[^:]+://})
-      url = url.gsub(/[\\"]/, '\\\1')
-    else
+  def get_req(d)
+    @requests[d['requestId']]
+  end
+
+  def update_req(d, h)
+    get_req(d).merge!(h)
+  end
+
+  def flush_req(d)
+    return unless @requests.include? d['requestId']
+    @res << get_req(d)
+    @requests.delete(d['requestId'])
+  end
+  
+  def do_request(url, req, cached=false)
+    rd = req['redirectResponse']
+    if rd
+      do_response(req, rd, true)
+    end
+
+    flush_req(req)
+
+    initiator = req['initiator']['type']
+    if !url.match(%r{[^:]+://})
       # some data or about url
-      url = nil
+      url = url[/^[^:]*/]
     end
-    h = {
-      :domainId => @domainid,
-      :requestId => d['requestId'],
-      :timestamp => d['timestamp'],
-      :url => url,
-      :initiator => initiator,
-      :fromCache => from_cache,
-    }
-    @printer.resource h
+    update_req(req,
+               {
+                 :requestId => req['requestId'],
+                 :url => url,
+                 :host => host_from_url(url),
+                 :initiator => initiator,
+                 :cached => cached,
+                 :dataLength => 0,
+                 :encodedDataLength => 0,
+               })
   end
 
-  def request(r, d, did_redirect=false)
-    uri = d['url']
-    m = %r{([^:]*?):(//)?([^:/]*)(:\d+)?}.match(uri)
+  def do_response(req, resp=nil, redirect=false)
+    resp = req['response'] unless resp
+    h = {
+      :status => resp['status'],
+      :redirect => redirect
+    }
+    mt = resp['mimeType']
+    if mt
+      h[:mimeType] = mt
+    end
+    update_req(req, h)
+  end
+
+  def do_data(d)
+    r = get_req(d)
+    r[:dataLength] += d['dataLength']
+    r[:encodedDataLength] += d['encodedDataLength']
+  end
+
+  def host_from_url(url)
+    m = %r{([^:]*?):(//)?([^:/]*)(:\d+)?}.match(url)
     if m && m[2]
       host = m[3]
       if m[4]
@@ -81,28 +120,6 @@ class Domain
     else
       host = nil
     end
-    h = {
-      :domainId => @domainid,
-      :requestId => r['requestId'],
-      :timestamp => r['timestamp'],
-      :host => host,
-      :connectionId => d['connectionId'],
-      :connectionReused => d['connectionReused'],
-      :mimeType => d['mimeType'],
-      :status => d['status'],
-      :didRedirect => did_redirect,
-    }
-    @printer.request h
-  end
-
-  def transfer(d)
-    h = {
-      :domainId => @domainid,
-      :requestId => d['requestId'],
-      :timestamp => d['timestamp'],
-      :dataLength => d['dataLength'],
-      :encodedDataLength => d['encodedDataLength'],
-    }
-    @printer.transfer h
+    host
   end
 end
