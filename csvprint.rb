@@ -1,4 +1,4 @@
-$: << File.realpath("..", __FILE__)
+$: << File.expand_path("..", __FILE__)
 
 require 'network'
 
