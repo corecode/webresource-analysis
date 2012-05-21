@@ -1,29 +1,35 @@
 $: << File.expand_path('..', $0)
 
-require 'network'
+require 'csvprint'
 
 class Scheduler
-  def initialize(concurrency=1)
+  def initialize(concurrency=1, printer=CsvPrint.new)
     @concurrency = concurrency
+    @p = printer
   end
 
   def run(dir=".")
     STDOUT.sync = true
     files = Dir.glob(File.join(dir, '*.log'))
     kids = []
+    tm = Mutex.new
     files.each_slice(files.size / @concurrency).each_with_index do |l, p_id|
-      kids << fork do
-        d_id = p_id
+      kids << Thread.start(p_id) do |d_id|
         l.each do |d|
-          d = Domain.new(d, d_id)
-          d.process
+          d = Domain.new(d)
+          data = d.process
+
+          tm.synchronize do
+            @p.add_domain(d_id, data)
+          end
           d_id += @concurrency
         end
       end
     end
     kids.each do |k|
-      Process.wait(k)
+      k.join
     end
+    @p.finish
   end
 end
 
