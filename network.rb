@@ -2,11 +2,29 @@ require 'json'
 require 'uri'
 
 class Domain
-  def initialize(file)
+  Fields = {
+    :domainId => -1,
+    :requestId => nil,
+    :host => nil,
+    :initiator => nil,
+    :cached => false,
+    :dataLength => 0,
+    :encodedDataLength => 0,
+    :mimeType => nil,
+    :status => -1,
+    :redirect => false,
+    :failed => true,
+  }
+
+  def initialize(file, id=nil)
     @file = file
     @data = File.readlines(file)
-    @requests = Hash.new{|h,k| h[k] = {}}
+    @requests = Hash.new{|h,k| h[k] = Fields.merge({:domainId => id})}
     @res = []
+  end
+
+  def fields
+    Fields
   end
 
   def process
@@ -39,6 +57,11 @@ class Domain
       res = p['resource']
       do_request res['url'], p, true
       do_response p, res
+      flush_req res
+    when "Network.requestFailed"
+      do_request_failed p
+    when "Network.loadingFinished"
+      do_request_finished p
     end
   end
 
@@ -76,16 +99,25 @@ class Domain
                  :host => host_from_url(url),
                  :initiator => initiator,
                  :cached => cached,
-                 :dataLength => 0,
-                 :encodedDataLength => 0,
                })
+  end
+
+  def do_request_failed(res)
+    update_req(res, {:failed => true})
+    flush_req(res)
+  end
+
+  def do_request_finished(res)
+    update_req(res, {:failed => false})
+    flush_req(res)
   end
 
   def do_response(req, resp=nil, redirect=false)
     resp = req['response'] unless resp
     h = {
       :status => resp['status'],
-      :redirect => redirect
+      :redirect => redirect,
+      :failed => false,
     }
     mt = resp['mimeType']
     if mt

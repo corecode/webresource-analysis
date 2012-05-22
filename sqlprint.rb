@@ -3,25 +3,22 @@ $: << File.expand_path("..", __FILE__)
 require 'network'
 
 class SqlPrint
-  Schema = <<-ends
-CREATE TABLE resource (
-       domainId        INTEGER,
-       requestId       TEXT,
-       url             TEXT,
-       host            TEXT,
-       initiator       INTEGER,
-       cached          INTEGER,
-       dataLength      INTEGER,
-       encodedDataLength INTEGER,
-       mimeType        TEXT,
-       status          INTEGER,
-       redirect        INTEGER
-);
-ends
-  
+  Fields = Domain::Fields.keys
+
   def initialize(outf=$stdout)
     @outf = outf
-    @outf.puts Schema
+    print_header
+  end
+
+  def print_header
+    @outf.puts "CREATE TABLE resource (\n\t%s\n);" % Domain::Fields.map{|k, v|
+      "%s\t%s" % [k, case v
+                    when Numeric, true, false
+                      "INTEGER"
+                    else
+                      "TEXT"
+                    end]
+    }.join(",\n\t")
     @outf.puts "BEGIN TRANSACTION;"
   end
 
@@ -29,25 +26,27 @@ ends
     @outf.puts "COMMIT TRANSACTION;"
   end
 
-  def add_domain(id, l)
+  def add_domain(l, id=nil)
     if !Array === l
       l = [l]
     end
     l.each do |data|
-      data[:domainId] = id
       @outf.puts 'INSERT INTO resource (%s) VALUES (%s);' %
         [
-         data.keys.join(', '),
-         data.values.map { |d|
+         Fields.join(', '),
+         Fields.map do |f|
+           d = data[f]
            case d
            when Numeric
              d.to_s
            when nil
              'NULL'
+           when true, false
+             d ? "1" : "0"
            else
-             "\"#{d}\""
+             '"%s"' % d.to_s.gsub(/[\\"]/, "\\$1")
            end
-         }.join(', ')
+         end.join(', ')
         ]
     end
   end
@@ -58,8 +57,8 @@ if $0 == __FILE__
   p = SqlPrint.new
   ARGV.each do |f|
     id += 1
-    d = Domain.new(f)
-    p.add_domain(id, d.process)
+    d = Domain.new(f, id)
+    p.add_domain(d.process)
   end
   p.finish
 end

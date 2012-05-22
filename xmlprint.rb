@@ -3,25 +3,15 @@ $: << File.expand_path("..", __FILE__)
 require 'network'
 
 class XmlPrint
-  Fields = {
-    :domainId => "int",
-    :host => "string",
-    :initiator => "string",
-    :cached => "string",
-    :dataLength => "int",
-    :encodedDataLength => "int",
-    :mimeType => "string",
-    :status => "int",
-    :redirect => "string"
-  }
+  Fields = Hash[*Domain::Fields.map{|f, t| [f, Numeric === t ? "int" : "string"]}.flatten]
 
   def initialize(outf=$stdout)
     @outf = outf
     @data = []
   end
   
-  def add_domain(id, l)
-    @data.concat l.map{|e| e[:domainId] = id; e}
+  def add_domain(l, id=nil)
+    @data.concat l
   end
 
   def finish
@@ -66,8 +56,8 @@ if $0 == __FILE__
   p = XmlPrint.new
   ARGV.each do |f|
     id += 1
-    d = Domain.new(f)
-    p.add_domain(id, d.process)
+    d = Domain.new(f, id)
+    p.add_domain(d.process)
   end
   p.finish
 end

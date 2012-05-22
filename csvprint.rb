@@ -3,33 +3,41 @@ $: << File.expand_path("..", __FILE__)
 require 'network'
 
 class CsvPrint
-  Fields = %w{domainId requestId host initiator cached dataLength encodedDataLength mimeType status redirect}.map(&:to_sym)
-
+  Fields = Domain::Fields.keys
+  
   def initialize(outf=$stdout, options={})
     @opts = options.merge({:delim => ","})
-    @escapere = Regexp.new((%w{" ' \\ } + [@opts[:delim]]).join)
     @outf = outf
-    @outf.puts "# %s" % Fields.join(@opts[:delim])
+    print_header
+  end
+
+  def print_header
+    os = Fields.join(@opts[:delim])
+    if @opts[:delim] == ?\t
+      os = "# " + os
+    end
+    @outf.puts os
   end
 
   def finish
   end
 
-  def add_domain(id, l)
+  def add_domain(l, id=nil)
     if !Array === l
       l = [l]
     end
     l.each do |data|
-      data[:domainId] = id
       fs = Fields.map do |f|
         it = data[f].to_s
-        if it.match(@escapere)
+        # always quote non-numerics
+        unless Numeric === data[f]
           it = '"%s"' % it.gsub(/[\\"]/, "\\$1")
         end
         it
       end
 
-      @outf.puts fs.join(@opts[:delim])
+      os = fs.join(@opts[:delim])
+      @outf.puts os
     end
   end
 end
@@ -39,8 +47,8 @@ if $0 == __FILE__
   p = CsvPrint.new
   ARGV.each do |f|
     id += 1
-    d = Domain.new(f)
-    p.add_domain(id, d.process)
+    d = Domain.new(f, id)
+    p.add_domain(d.process)
   end
   p.finish
 end
