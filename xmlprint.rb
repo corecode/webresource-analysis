@@ -3,7 +3,7 @@ $: << File.expand_path("..", __FILE__)
 require 'network'
 
 class XmlPrint
-  Fields = Hash[*Domain::Fields.map{|f, t| [f, Numeric === t ? "int" : "string"]}.flatten]
+  Fields = Domain::Fields.merge(Domain::Fields){|f, t| Numeric === t ? "int" : "string"}
 
   def initialize(outf=$stdout)
     @outf = outf
