@@ -16,11 +16,11 @@ class Scheduler
     files.each_slice(files.size / @concurrency).each_with_index do |l, p_id|
       kids << Thread.start(p_id) do |d_id|
         l.each do |d|
-          d = Domain.new(d)
+          d = Domain.new(d, d_id)
           data = d.process
 
           tm.synchronize do
-            @p.add_domain(d_id, data)
+            @p.add_domain(data)
           end
           d_id += @concurrency
         end
