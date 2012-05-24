@@ -28,12 +28,20 @@ class CsvPrint
     end
     l.each do |data|
       fs = Fields.map do |f|
-        it = data[f].to_s
-        # always quote non-numerics
-        unless Numeric === data[f]
-          it = '"%s"' % it.gsub(/[\\"]/, "\\$1")
+        it = data[f]
+        case it
+        when Numeric
+          it.to_s
+        when true
+          "TRUE"
+        when false
+          "FALSE"
+        when nil, ""
+          "NA"
+        else
+          # always quote non-numerics
+          '"%s"' % it.to_s.gsub(/[\\"]/, "\\$1")
         end
-        it
       end
 
       os = fs.join(@opts[:delim])

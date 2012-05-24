@@ -31,15 +31,14 @@ class SqlPrint
       l = [l]
     end
     l.each do |data|
-      @outf.puts 'INSERT INTO resource (%s) VALUES (%s);' %
+      @outf.puts 'INSERT INTO resource VALUES (%s);' %
         [
-         Fields.join(', '),
          Fields.map do |f|
            d = data[f]
            case d
            when Numeric
              d.to_s
-           when nil
+           when nil, ""
              'NULL'
            when true, false
              d ? "1" : "0"

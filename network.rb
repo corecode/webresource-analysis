@@ -5,12 +5,14 @@ class Domain
   Fields = {
     :domainId => -1,
     :requestId => nil,
+    :url => nil,
     :host => nil,
     :initiator => nil,
     :cached => false,
     :dataLength => 0,
     :encodedDataLength => 0,
     :mimeType => nil,
+    :pageType => nil,
     :status => -1,
     :redirect => false,
     :failed => true,
@@ -65,6 +67,10 @@ class Domain
     end
   end
 
+  def have_req(d)
+    @requests.include? d['requestId']
+  end
+
   def get_req(d)
     @requests[d['requestId']]
   end
@@ -80,9 +86,11 @@ class Domain
   end
   
   def do_request(url, req, cached=false)
+    return if url == "about:blank"
+
     rd = req['redirectResponse']
     if rd
-      do_response(req, rd, true)
+      do_response(req, req, rd, true)
     end
 
     flush_req(req)
@@ -108,21 +116,20 @@ class Domain
   end
 
   def do_request_finished(res)
+    return if !have_req(res)
     update_req(res, {:failed => false})
     flush_req(res)
   end
 
-  def do_response(req, resp=nil, redirect=false)
-    resp = req['response'] unless resp
+  def do_response(req, par=req, resp=par['response'], redirect=false)
+    return if resp['url'] == 'about:blank'
     h = {
       :status => resp['status'],
       :redirect => redirect,
       :failed => false,
+      :mimeType => resp['mimeType'],
+      :pageType => par['type'],
     }
-    mt = resp['mimeType']
-    if mt
-      h[:mimeType] = mt
-    end
     update_req(req, h)
   end
 
