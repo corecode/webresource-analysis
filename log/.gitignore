@@ -1,0 +1,8 @@
+figure/*
+cache/*
+*.tex
+*.aux
+*.pdf
+*.log
+auto/*
+.R*
