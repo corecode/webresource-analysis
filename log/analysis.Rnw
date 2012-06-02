@@ -1,16 +1,21 @@
 \documentclass[a4paper]{article}
 
-\usepackage{amsmath}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 \usepackage{siunitx}
-\newtheorem{summary}{Summary}
+
+\newenvironment{analysis}%
+{\noindent\ignorespaces%
+ \textbf{Analysis.}}%
+{\par\noindent\ignorespacesafterend}
 
 
 <<echo=F>>=
   options(width=65)
 @ 
 
-\SweaveOpts{fig.width=6.5, fig.height=5, fig.align='center',
-  out.width='0.95\\textwidth', cache=T}
+\SweaveOpts{fig.width=6.5, fig.height=3.5, fig.align='center',
+  out.width='0.95\\textwidth', cache=T, message=F}
 
 
 
@@ -27,7 +32,7 @@
 For the time being, we work with a reduced data set of 2000 domains
 (instead of 20k or 100k).
 
-<<>>=
+<<echo=F>>=
 require(ggplot2)
 require(plyr)
 data(webresource)
@@ -53,50 +58,120 @@ Size has many dimensions.  Let's look first at:
 Many of these metrics are aggregates, i.e. they have to be derived
 from the set of requests per domain.
 
-\subsubsection{Size in bytes}
-\label{sec:size-bytes}
+% \subsubsection{Size in bytes}
+% \label{sec:size-bytes}
 
 
-<<warning=F>>=
-lenagg <- aggregate(encodedDataLength ~ domainId, webresource, sum, na.rm=T)
-attach(lenagg)
-lenagg$ecdf <- ecdf(encodedDataLength)(encodedDataLength)
-qplot(encodedDataLength, data=lenagg, geom="density", log="x")
-qplot(encodedDataLength, ecdf, data=lenagg, geom="line", log="x")
-quantile(encodedDataLength, seq(0, 1, 0.05))
-detach()
-@ 
+% <<warning=F>>=
+% lenagg <- aggregate(encodedDataLength ~ domainId, webresource, sum, na.rm=T)
+% attach(lenagg)
+% lenagg$ecdf <- ecdf(encodedDataLength)(encodedDataLength)
+% qplot(encodedDataLength, data=lenagg, geom="density", log="x")
+% qplot(encodedDataLength, ecdf, data=lenagg, geom="line", log="x")
+% quantile(encodedDataLength, seq(0, 1, 0.05))
+% detach()
+% @ 
 
-\begin{summary}
-  Web sites are unexpecedly heavy in size: $2/3$ of the websites are
-  larger than \SI{500}{\kilo\byte} and over $1/3$ is larger than
-  \SI{1}{\mega\byte}.  The typical web site size is around \SI{750}{\kilo\byte}.
-\end{summary}
+% \begin{analysis}
+%   Web sites are unexpecedly heavy in size: $2/3$ of the websites are
+%   larger than \SI{500}{\kilo\byte} and over $1/3$ is larger than
+%   \SI{1}{\mega\byte}.  The typical web site size is around \SI{750}{\kilo\byte}.
+% \end{analysis}
 
 
 \subsubsection{Number of resources}
 \label{sec:number-resources}
 
-<<warning=F>>=
+<<warning=F, echo=F>>=
 ## only count non-redirect transfers
 resagg <- as.data.frame(table(webresource$domainId[webresource$redirect==F]), responseName="requests")
 attach(resagg)
 resagg$ecdf <- ecdf(requests)(requests)
 qplot(requests, ecdf, data=resagg, geom="line", xlim=c(0, 200))
-qplot(requests, data=resagg, geom="density", xlim=c(0,200), adjust=1/3)
+qplot(requests, ..count../sum(..count..), data=resagg, geom="histogram", xlim=c(0,200), ylab="Fraction")
 quantile(requests, seq(0, 1, 0.1))
 detach()
 @ 
 
-\begin{summary}
+\begin{analysis}
   There is no "typical" number of resources in a website;  instead,
   between 1 and 100 resources are almost uniformly distributed, with
   slight peaks at the low end ($\le 3$) and around 50 resources.
   Half of all web sites contain more than 70 resources, and almost
   \SI{10}{\percent} use more than 200 resources.  Only
   \SI{10}{\percent} load less than 15 resources.
-\end{summary}
+\end{analysis}
 
+
+\section{Thu May 31 16:57:41 CEST 2012}
+\subsection{Website size in bytes}
+
+Mihai points out that a log scale might be misleading.  Therefore
+again without log scale:
+
+<<warning=F, echo=F>>=
+lenagg <- aggregate(encodedDataLength ~ domainId, webresource, sum, na.rm=T)
+attach(lenagg)
+lenagg$ecdf <- ecdf(encodedDataLength)(encodedDataLength)
+qplot(encodedDataLength, ecdf, data=lenagg, geom="line", xlim=c(0, 4e6))
+qplot(encodedDataLength, ..count../sum(..count..), data=lenagg, geom="histogram", binwidth=200e3) + coord_cartesian(xlim=c(0, 4e6)) + xlab("Total website size") + ylab("Fraction")
+quantile(encodedDataLength, seq(0, 1, 0.1))
+detach()
+@ 
+
+\begin{analysis}
+  Most web sites are below \SI{1}{\mega\byte} in size.  Again, there
+  is no "typical" size.  Half of all sites are below
+  \SI{800}{\kilo\byte}, with the sizes being roughly uniformly
+  distributed;  the remaining \SI{50}{\percent} of sites are sloping
+  off about exponentially, with the 90th percentile at \SI{2.5}{\mega\byte}.
+\end{analysis}
+
+
+\section{Fri Jun  1 14:54:31 CEST 2012}
+
+\subsection{Which resources make up a website?}
+
+Trying to come up with a way to visualize the distribution of
+resources for all websites of a specific size.  Because this is a
+breakdown of a derivative (number of requests) metric, I'm having
+problems.
+
+<<warning=F, echo=F>>=
+wr = data.frame(domainId=webresource$domainId, encodedDataLength=webresource$encodedData, requests=1)
+lenagg = aggregate(cbind(encodedDataLength, requests) ~ domainId, wr, sum, na.rm=T)
+attach(lenagg)
+ggplot(lenagg, aes(x=requests, y=encodedDataLength)) + geom_point(size=5, alpha=0.05) + coord_cartesian(xlim=c(0,400), ylim=c(0, 6e6))+geom_abline(intercept=0, slope=9.6e3, color='blue')
+summary(encodedDataLength/requests)
+detach()
+@
+
+\begin{analysis}
+  There is a somewhat weak correlation between number of resources and
+  total website size.  While many pages fall close to the diagonal of
+  \SI{9.6}{\kilo\byte} per resource, the spread between large sites
+  with few resources and small sites with many resources is considerable.
+\end{analysis}
+
+
+\subsection{Page types and size}
+\label{sec:page-types-size}
+
+<<warning=F, echo=F>>=
+reses <- subset(webresource, failed==F&redirect==F)
+reses <- reses[sample(1:nrow(reses), 50000),]
+ggplot(reses, aes(y=encodedDataLength, x=pageType)) + geom_jitter(alpha=0.1, na.rm=T, aes(colour=pageType), legend=F) + geom_boxplot(alpha=0.0, colour="grey40", outlier.size=0.3) + coord_flip(ylim=c(0, 100e3))
+ggplot(reses, aes(y=encodedDataLength, x=pageType)) + geom_jitter(alpha=0.1, na.rm=T, aes(colour=pageType), legend=F) + geom_boxplot(alpha=0.0, colour="grey40", outlier.size=0.3) + coord_flip(ylim=c(0, 10e3))
+@ 
+
+\begin{analysis}
+  Different resource types present with different typical size
+  ranges.  Especially images and a bit less so scrips are most
+  prevalent and also range up to large sizes.  HTML, CSS and
+  javascript documents show clustering of distinct sizes which
+  indicates the prevalence of reuse of the same files by different
+  websites, either by direct linking or by copying.
+\end{analysis}
 
 \appendix
 
