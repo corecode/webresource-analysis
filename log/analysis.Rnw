@@ -27,8 +27,6 @@
 \maketitle
 
 
-\section{Initialization}
-
 For the time being, we work with a reduced data set of 2000 domains
 (instead of 20k or 100k).
 
@@ -38,13 +36,9 @@ require(plyr)
 data(webresource)
 @
 
-\section{Wed May 30 16:31:25 CEST 2012}
-\label{sec:wed-may-30}
-
-
 Trying to more clearly define what I have been trying to visualize.
 
-\subsection{What is the typical size of a website?}
+\section{What is the typical size of a website?}
 \label{sec:what-typical-size}
 
 
@@ -79,7 +73,7 @@ from the set of requests per domain.
 % \end{analysis}
 
 
-\subsubsection{Number of resources}
+\subsection{Number of resources}
 \label{sec:number-resources}
 
 <<warning=F, echo=F>>=
@@ -103,7 +97,6 @@ detach()
 \end{analysis}
 
 
-\section{Thu May 31 16:57:41 CEST 2012}
 \subsection{Website size in bytes}
 
 Mihai points out that a log scale might be misleading.  Therefore
@@ -128,14 +121,10 @@ detach()
 \end{analysis}
 
 
-\section{Fri Jun  1 14:54:31 CEST 2012}
+\subsection{Relation between size and number of resources}
+\label{sec:relat-betw-size}
 
-\subsection{Which resources make up a website?}
 
-Trying to come up with a way to visualize the distribution of
-resources for all websites of a specific size.  Because this is a
-breakdown of a derivative (number of requests) metric, I'm having
-problems.
 
 <<warning=F, echo=F>>=
 wr = data.frame(domainId=webresource$domainId, encodedDataLength=webresource$encodedData, requests=1)
@@ -153,6 +142,14 @@ detach()
   with few resources and small sites with many resources is considerable.
 \end{analysis}
 
+
+
+\section{Which resources make up a website?}
+
+Trying to come up with a way to visualize the distribution of
+resources for all websites of a specific size.  Because this is a
+breakdown of a derivative (number of requests) metric, I'm having
+problems.
 
 \subsection{Page types and size}
 \label{sec:page-types-size}

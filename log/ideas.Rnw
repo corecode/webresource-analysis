@@ -151,3 +151,19 @@ There are some services that provide a custom server name, under the
 umbrella of their domain name.  These are usually CDNs or CDN-like
 services, such as CloudFront.  Maybe something interesting is in there? 
 A bit vague what to look at.
+
+
+\subsection{Model load time}
+\label{sec:model-load-time}
+
+Model load time vs size/connection setup/connection reuse cost.  Then
+estimate how much time could be saved if resources would come from one
+host or in one transfer, etc.
+
+
+\subsection{Estimate possible data saving due to compression}
+\label{sec:estim-poss-data}
+
+Model compression ratio for mime types (different image
+compressions?).  Then estimate how much data could be saved if these
+resources would be indeed compressed.
