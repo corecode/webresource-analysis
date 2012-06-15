@@ -39,6 +39,7 @@ class Domain
         $stderr.puts e.backtrace
       end
     end
+    @requests.delete_if {|_, r| not r[:url]}
     @res.concat @requests.values
     @requests.clear
     @res
@@ -86,7 +87,7 @@ class Domain
   end
   
   def do_request(url, req, cached=false)
-    return if url == "about:blank"
+    return if url.match(/^(?:about|data):/)
 
     rd = req['redirectResponse']
     if rd
@@ -116,13 +117,13 @@ class Domain
   end
 
   def do_request_finished(res)
-    return if !have_req(res)
+    return if !have_req(res) || !get_req(res)[:url]
     update_req(res, {:failed => false})
     flush_req(res)
   end
 
   def do_response(req, par=req, resp=par['response'], redirect=false)
-    return if resp['url'] == 'about:blank'
+    return if resp['url'].match(/^(?:about|data):/)
     h = {
       :status => resp['status'],
       :redirect => redirect,
