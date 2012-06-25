@@ -47,7 +47,7 @@ class Domain
 
   def process_line(l)
     d = JSON l
-    p = d['result']
+    p = d['params']
     return unless p
     case d['method']
     when "Network.requestWillBeSent"
