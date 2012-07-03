@@ -87,7 +87,7 @@ class Domain
   end
   
   def do_request(url, req, cached=false)
-    return if url.match(/^(?:about|data):/)
+    return if url.match(/^(?:about|data|chrome):/)
 
     rd = req['redirectResponse']
     if rd
@@ -123,7 +123,7 @@ class Domain
   end
 
   def do_response(req, par=req, resp=par['response'], redirect=false)
-    return if resp['url'].match(/^(?:about|data):/)
+    return if resp['url'].match(/^(?:about|data|chrome):/)
     h = {
       :status => resp['status'],
       :redirect => redirect,
