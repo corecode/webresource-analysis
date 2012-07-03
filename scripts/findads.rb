@@ -27,6 +27,20 @@ class AdFinder
   def match_strings(a, b)
     # implement http://www.catalysoft.com/articles/StrikeAMatch.html
     # http://stackoverflow.com/questions/653157/a-better-similarity-ranking-algorithm-for-variable-length-strings
+
+    if !a ^ !b
+      # if one is nil and the other isn't, the score is 0
+      return 0
+    elsif !a && !b
+      # if both are nil, full score
+      return 1
+    elsif a.length < 2 && b.length < 2
+      if a == b
+        return 1
+      else
+        return 0
+      end
+    end
     ap = (0..a.length-2).map{|i| a[i,2]}
     bp = (0..b.length-2).map{|i| b[i,2]}
     union = ap.size + bp.size
@@ -41,71 +55,102 @@ class AdFinder
       end
     end
 
+    if union == 0
+      return 1
+    end
+
     2.0 * score / union
   end
 
   def classify
-    adblock_urls = Set.new(@adblock_reqs.map{|r| r[:url]})
-    vanilla_urls = Set.new(@vanilla_reqs.map{|r| r[:url]})
+    similarities = []
 
-    common_urls = adblock_urls & vanilla_urls
+    adblock_set, vanilla_set = [@adblock_reqs, @vanilla_reqs].map do |rs|
+      reverse_map = Hash.new{|h, k| h[k] = []}
 
-    adblock_un = @adblock_reqs.select{|r| not common_urls.include? r[:url]}
-    vanilla_un = @vanilla_reqs.select{|r| not common_urls.include? r[:url]}
+      rs.each do |r|
+        next if r[:status] == -1 # reject adblock connection blocks
 
-    @common = @adblock_reqs.select{|r| common_urls.include? r[:url]}
-
-    # The easy part is over.  Now try matching vanilla requests to all
-    # unmatched adblock requests.
-
-    puts "#{@common.length} common requests.  #{vanilla_un.length} unmatched vanilla, #{adblock_un.length} unmatched adblock."
-
-    urlesc = /\s\[\][|]/
-    
-    adblock_un.each do |r|
-      if not r[:url]
-        require 'pp'
-        pp r
-        
+        reduced = {}
+        [:url, :mimeType, :status, :redirect, :failed].map do |f|
+          reduced[f] = r[f]
+        end
+        reverse_map[reduced] << r
       end
+      reverse_map
+    end
+
+    @common = []
+    (Set.new(adblock_set.keys) & Set.new(vanilla_set.keys)).each do |e|
+      @common += vanilla_set[e]
+      vanilla_set.delete(e)
+      adblock_set.delete(e)
+    end
+
+    # Now we need to match all those that didn't have equivalents
+    adblock_un = adblock_set.inject([]){|a, e| a += e[1]}
+    vanilla_un = vanilla_set.inject([]){|a, e| a += e[1]}
+
+    adblock_un.each do |r|
       rurl = split_url(r[:url])
 
-      puts "trying to match #{r[:url]}"
-
-      similarities = []
       vanilla_un.each do |v|
         vurl = split_url(v[:url])
 
         # we score for similarity
         score = 0
-        rurl.each do |k, rv|
+
+        rurl.each_with_index do |(k, rv), i|
           vv = vurl[k]
 
-          if !rv ^ !vv
-            # one has it, the other doesn't.  No score!
-            next
-          elsif !rv
-            score += 1
-            next
-          end
-
-          # both have a string.  score their similarity
-          partscore = match_strings(rv, vv)
-          # puts "%0.3f\t%s vs %s" % [partscore, rv, vv]
-          score += partscore
+          # weigh scores so that protocol has the highest weight,
+          # followed by host, then port, then path, then query string.
+          score += match_strings(rv, vv) * 2**(rurl.length - i)
         end
 
-        similarities << [score, v]
-      end
+        [:mimeType].each do |f|
+          score += match_strings(r[f], v[f])
+        end
 
-      similarities.sort_by!{|i| -i[0]}
+        [:redirect, :failed, :status].each do |f|
+          if r[f] == v[f]
+            score += 1
+          end
+        end
 
-      # The maximum score is 5.  Let's say that anything below 4
-      # (i.e. 1 completely different) is unaccetable.
-      similarities.reject!{|i| i[0] < 4}
-      similarities.each do |score, v|
-        puts "\t%0.3f\t%s" % [score, v[:url]]
+        [:dataLength].each do |f|
+          min = [r[f], v[f]].min
+          max = [r[f], v[f]].max
+
+          if max.nil? ^ min.nil?
+            # nope
+            next
+          elsif max.nil? && min.nik?
+            score += 1
+          elsif max == 0
+            score += 1
+          else
+            score += min.to_f / max
+          end
+        end
+
+        if score.nan? || score > 100
+          require 'pp'
+          pp r, v, score
+          
+        end
+        
+        similarities << {:score => score, :adblock => r, :vanilla => v}
       end
+    end
+
+    similarities.sort_by!{|i| -i[:score]}
+
+    # greedily consume pairs
+    while s = similarities.shift
+      require 'pp'
+      pp s if s[:score] <= 62.0
+      similarities.delete_if{|i| i[:adblock] == s[:adblock] || i[:vanilla] == s[:vanilla]}
     end
   end
 end
