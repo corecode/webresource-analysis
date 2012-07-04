@@ -170,6 +170,38 @@ ggplot(reses, aes(y=encodedDataLength, x=pageType)) + geom_jitter(alpha=0.1, na.
   websites, either by direct linking or by copying.
 \end{analysis}
 
+\section{Classifying ads}
+\label{sec:classifying-ads}
+
+Because Adblock will block requests for ads right away, and because
+ads can be loaded in multiple stages, we can not observe the impact of
+ads just by looking at the requests issued or blocked during one
+session with adblock enabled.  To classify ads, we therefore access an
+URL twice, once with a standard browser (A = ads), and once with
+Adblock enabled (B = block).  Often, however, websites will not
+produce the same set of requests (quantify!) when accessed multiple
+times.
+
+We can assign requests from both runs to different groups:
+
+\begin{description}
+\item[common] requests that exist both in A and B and were not blocked in B.
+\item[ads] requests that exist both in A and B and were blocked in B.
+\item[ads-depend] requests that only exist in A, but were initiated by
+  resources that were assigned to group \emph{ads} or \emph{ads-depend}.
+\item[soft-common] requests that do not match exactly between A and B,
+  but are ``similar enough'' (metric!); the request in B was not blocked.
+\item[soft-ads] requests that do not match exactly between A and B,
+  but are ``similar enough''; the request in B was blocked.
+\item[soft-ads-depend] like \emph{ads-depend}, but for \emph{soft-ads}.
+\item[unknown-ads] only exists for B;  requests that were blocked, but
+  have no partner in A.
+\item[unknown] requests that exist only in A or B but have no similar
+  partner.  These requests are certainly no ads in B, but are either
+  ads or no ads in A.
+\end{description}
+
+
 \appendix
 
 <<child='ideas.Rnw', eval=T>>=
