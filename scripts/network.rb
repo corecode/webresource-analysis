@@ -16,20 +16,25 @@ class Domain
     :status => -1,
     :redirect => false,
     :failed => true,
+    :blocked => false,
   }
+
+  attr_reader :requests
 
   def initialize(file, id=nil)
     @file = file
     @data = File.readlines(file)
-    @requests = Hash.new{|h,k| h[k] = Fields.merge({:domainId => id})}
-    @res = []
+    @inflight = Hash.new{|h,k| h[k] = Fields.merge({:domainId => id})}
+    @inflight_by_url = Hash.new{|h,k| h[k] = []}
+    @adblock_inflight = {}
+    @requests = []
   end
 
   def fields
     Fields
   end
 
-  def process
+  def process!
     @data.each_with_index do |l, i|
       begin
         process_line(l)
@@ -39,10 +44,16 @@ class Domain
         $stderr.puts e.backtrace
       end
     end
-    @requests.delete_if {|_, r| not r[:url]}
-    @res.concat @requests.values
-    @requests.clear
-    @res
+    @inflight.delete_if {|_, r| not r[:url]}
+    @requests.concat @inflight.values
+    @inflight.clear
+
+    @adblock_inflight.each do |url, actions|
+      next if actions.empty?
+      puts "uncollected adblock url: #{actions.join(", ")} #{url}"
+    end
+    
+    @requests
   end
 
   def process_line(l)
@@ -65,15 +76,17 @@ class Domain
       do_request_failed p
     when "Network.loadingFinished"
       do_request_finished p
+    when "Console.messageAdded"
+      do_console_message p
     end
   end
 
   def have_req(d)
-    @requests.include? d['requestId']
+    @inflight.include? d['requestId']
   end
 
   def get_req(d)
-    @requests[d['requestId']]
+    @inflight[d['requestId']]
   end
 
   def update_req(d, h)
@@ -81,9 +94,9 @@ class Domain
   end
 
   def flush_req(d)
-    return unless @requests.include? d['requestId']
-    @res << get_req(d)
-    @requests.delete(d['requestId'])
+    return unless @inflight.include? d['requestId']
+    @requests << get_req(d)
+    req = @inflight.delete(d['requestId'])
   end
   
   def do_request(url, req, cached=false)
@@ -109,6 +122,12 @@ class Domain
                  :initiator => initiator,
                  :cached => cached,
                })
+
+    if @adblock_inflight[url] && (blocked = @adblock_inflight[url].shift)
+      update_req(req, {:blocked => blocked})
+    else
+      @inflight_by_url[url] << get_req(req)
+    end
   end
 
   def do_request_failed(res)
@@ -138,6 +157,34 @@ class Domain
     r = get_req(d)
     r[:dataLength] += d['dataLength']
     r[:encodedDataLength] += d['encodedDataLength']
+  end
+
+  def do_console_message(p)
+    msg = p['message']['text']
+    m = msg.match(/^ABP: (pass|block)ing .*? to `(.+?)'(?:$|, )/)
+    return unless m
+
+    action = m[1]
+    url = m[2]
+
+    blocked = (action == "block")
+
+    reqs = @inflight_by_url[url]
+
+    # because logs are collected asynchronously, the adblock message
+    # may appear before or after the request.  Most of the time they
+    # seem to appear after, but sometimes they do appear before.  For
+    # these cases we need to keep the adblock action around so that we
+    # clean up properly in the end.
+
+    if reqs.empty?
+      @adblock_inflight[url] ||= []
+      @adblock_inflight[url] << blocked
+      return
+    end
+
+    req = reqs.shift
+    req[:blocked] = blocked
   end
 
   def host_from_url(url)
