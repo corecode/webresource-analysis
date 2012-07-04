@@ -4,10 +4,43 @@ require 'network'
 require 'set'
 
 class AdFinder
-  def initialize(adblock_reqs, vanilla_reqs)
-    @adblock_reqs, @vanilla_reqs = adblock_reqs, vanilla_reqs
-    @common = nil
-    @ads = nil
+  attr_accessor :adblock, :vanilla
+
+  class Classify
+    attr_accessor :requests, :common, :ads, :ads_depend
+    attr_accessor :soft_common, :soft_ads, :soft_ads_depend, :unknown_ads, :unknown
+    attr_reader :original_count
+
+    def initialize(dom)
+      @requests = dom.requests
+      @common = []
+      @ads = []
+      @ads_depend = []
+      @soft_common = []
+      @soft_ads = []
+      @soft_ads_depend = []
+      @unknown_ads = []
+      @unknown = []
+
+      # Make sure we don't lose anything on the way.
+      @original_count = @requests.length
+    end
+
+    def stats
+      %w{common ads ads_depend soft_common soft_ads soft_ads_depend unknown_ads unknown}.inject({}) do |h, f|
+        h.update({f.to_sym => instance_variable_get('@'+f).length})
+      end
+    end
+
+    def count
+      %w{common ads ads_depend soft_common soft_ads soft_ads_depend unknown_ads unknown}.inject(0) do |s, f|
+        s + instance_variable_get('@' + f).length
+      end
+    end
+  end
+
+  def initialize(adblock, vanilla)
+    @adblock, @vanilla = Classify.new(adblock), Classify.new(vanilla)
   end
 
   def split_url(url)
@@ -63,64 +96,87 @@ class AdFinder
   end
 
   def classify
+    # These are clearly ads, so take them out first.
+    ads, @adblock.requests = @adblock.requests.partition{|r| r[:blocked]}
+
+    # All requests in vanilla that are in ads are of course also ads.
+    ad_urls = Set.new(ads.map{|r| r[:url]})
+    @vanilla.ads, @vanilla.requests = @vanilla.requests.partition{|r| ad_urls.include? r[:url]}
+
+    # Now we have identified the set of common ads.  The adblock ads
+    # that are not common will be either soft_ads or unknown_ads.
+    common_ad_urls = Set.new(@vanilla.ads.map{|r| r[:url]})
+    @adblock.ads, ads = ads.partition{|r| common_ad_urls.include? r[:url]}
+
+    # now that there are no more ads (blocked requests) in adblock,
+    # all is left is non-ads.  move the common requests.
+    adblock_urls, vanilla_urls = [@adblock, @vanilla].map{|s| Set.new(s.requests.map{|r| r[:url]})}
+    common_urls = adblock_urls & vanilla_urls
+    [@adblock, @vanilla].each{|s| s.common, s.requests = s.requests.partition{|r| common_urls.include? r[:url]}}
+
+    # XXX do -depend matching
+
+    # XXX similar matching should take a whole body of requests to
+    # compare to, and a (smaller) list of requests that should be
+    # sorted.
+
+    # Now we come to the fuzzy processing to match similar enough
+    # requests.
+
+    # requests similar to adblocks' remaining ads are soft_ads.  The
+    # rest that does not match is unknown_ads for adblock, and
+    # whatever for vanilla.
+    ((@adblock.soft_ads, @adblock.unknown_ads), (@vanilla.soft_ads, @vanilla.requests)) = similar(ads, @vanilla.requests)
+
+    # XXX do -depend matching
+
+    # what remains are similar common and what we could not classify
+    # for adblock.
+    ((@adblock.soft_common, @adblock.unknown), (@vanilla.soft_common, @vanilla.unknown)) = similar(@adblock.requests, @vanilla.requests)
+    @adblock.requests = []
+    @vanilla.requests = []
+
+    [@adblock, @vanilla].each do |s|
+      if s.count != s.original_count
+        raise RuntimeError, "lost requests on the way"
+      end
+    end
+  end
+
+  # Takes a list of requests, returns a scored list of matches
+  def similar(al, bl, threshold=62)
     similarities = []
 
-    adblock_set, vanilla_set = [@adblock_reqs, @vanilla_reqs].map do |rs|
-      reverse_map = Hash.new{|h, k| h[k] = []}
+    al.each do |a|
+      aurl = split_url(a[:url])
 
-      rs.each do |r|
-        next if r[:status] == -1 # reject adblock connection blocks
-
-        reduced = {}
-        [:url, :mimeType, :status, :redirect, :failed].map do |f|
-          reduced[f] = r[f]
-        end
-        reverse_map[reduced] << r
-      end
-      reverse_map
-    end
-
-    @common = []
-    (Set.new(adblock_set.keys) & Set.new(vanilla_set.keys)).each do |e|
-      @common += vanilla_set[e]
-      vanilla_set.delete(e)
-      adblock_set.delete(e)
-    end
-
-    # Now we need to match all those that didn't have equivalents
-    adblock_un = adblock_set.inject([]){|a, e| a += e[1]}
-    vanilla_un = vanilla_set.inject([]){|a, e| a += e[1]}
-
-    adblock_un.each do |r|
-      rurl = split_url(r[:url])
-
-      vanilla_un.each do |v|
-        vurl = split_url(v[:url])
+      bl.each do |b|
+        burl = split_url(b[:url])
 
         # we score for similarity
         score = 0
 
-        rurl.each_with_index do |(k, rv), i|
-          vv = vurl[k]
+        aurl.each_with_index do |(k, av), i|
+          bv = burl[k]
 
           # weigh scores so that protocol has the highest weight,
           # followed by host, then port, then path, then query string.
-          score += match_strings(rv, vv) * 2**(rurl.length - i)
+          score += match_strings(av, bv) * 2**(aurl.length - i)
         end
 
         [:mimeType].each do |f|
-          score += match_strings(r[f], v[f])
+          score += match_strings(a[f], b[f])
         end
 
         [:redirect, :failed, :status].each do |f|
-          if r[f] == v[f]
+          if a[f] == b[f]
             score += 1
           end
         end
 
         [:dataLength].each do |f|
-          min = [r[f], v[f]].min
-          max = [r[f], v[f]].max
+          min = [a[f], b[f]].min
+          max = [a[f], b[f]].max
 
           if max.nil? ^ min.nil?
             # nope
@@ -133,25 +189,33 @@ class AdFinder
             score += min.to_f / max
           end
         end
-
-        if score.nan? || score > 100
-          require 'pp'
-          pp r, v, score
-          
-        end
         
-        similarities << {:score => score, :adblock => r, :vanilla => v}
+        similarities << {:score => score, :a => a, :b => b}
       end
     end
 
     similarities.sort_by!{|i| -i[:score]}
 
     # greedily consume pairs
+    common_a = Set.new
+    common_b = Set.new
     while s = similarities.shift
-      require 'pp'
-      pp s if s[:score] <= 62.0
-      similarities.delete_if{|i| i[:adblock] == s[:adblock] || i[:vanilla] == s[:vanilla]}
+      break if s[:score] < threshold
+
+      if common_a.include?(s[:a]) || common_b.include?(s[:b])
+        # one of these elements of the pair has already been consumed,
+        # so skip it here.
+        next
+      end
+
+      common_a << s[:a]
+      common_b << s[:b]
     end
+
+    unmatched_a = (Set.new(al) - common_a).to_a
+    unmatched_b = (Set.new(bl) - common_b).to_a
+
+    [[common_a.to_a, unmatched_a], [common_b.to_a, unmatched_b]]
   end
 end
 
@@ -166,7 +230,21 @@ if __FILE__ == $0
       puts "cannot find pair for #{n}"
     end
 
-    finder = AdFinder.new(adblock.process, vanilla.process)
+    adblock.process!
+    vanilla.process!
+
+    if adblock.requests.empty? || vanilla.requests.empty?
+      puts "skipping #{n} because of empty requests"
+      next
+    end
+
+    finder = AdFinder.new(adblock, vanilla)
     finder.classify
+
+    require 'pp'
+    puts n
+    [finder.adblock, finder.vanilla].each do |l|
+      pp l.stats
+    end
   end
 end
