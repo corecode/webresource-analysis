@@ -39,7 +39,7 @@ class Scheduler
     kids.each do |k|
       k.join
     end
-    @p.each do |p|
+    @p.values.flatten.each do |p|
       p.finish
     end
   end
@@ -102,6 +102,7 @@ if $0 == __FILE__
       end
 
       m = arg.match(/(?:([^:]+):)?((.*?)([.]([^.]+))?)$/)
+
       if !m || (!m[1] && !m[4])
         $stderr.puts "output requires type specification, e.g. `sql:foo' or `foo.sql'"
         exit 1
@@ -123,10 +124,10 @@ if $0 == __FILE__
         end
         printers[output_mode] << p_class.new
       else
-        output_mode.each do |m|
-          fname = "%s-%s%s" % [m[3], m, m[4]]
+        output_mode.each do |mode|
+          fname = "%s-%s%s" % [m[3], mode, m[4]]
           outf = File.open(fname, 'w')
-          printers[output_mode] << p_class.new(outf)
+          printers[mode] << p_class.new(outf)
         end
       end
     when '--verbose'
