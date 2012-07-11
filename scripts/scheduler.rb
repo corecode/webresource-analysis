@@ -1,5 +1,7 @@
 $: << File.expand_path('..', $0)
 
+require 'thread'
+
 require 'findads'
 require 'csvprint'
 require 'sqlprint'
@@ -19,20 +21,27 @@ class Scheduler
 
     names = files.map{|a| a.match(/^(.*?)-(?:adblock|vanilla)\.log$/) && $1}.compact.uniq
 
+    workqueue = Queue.new
+    names.each do |n|
+      workqueue << n
+    end
+
     total_count = names.length
-    count = 0
 
     kids = []
-    names.each_slice((total_count / @concurrency) + 1).each_with_index do |l, p_id|
+    @concurrency.times do |p_id|
       kids << Thread.start(p_id) do |d_id|
-        l.each do |n|
-          @tm.synchronize do
-            count += 1
-          end
-          $stderr.puts "#{n} (#{count}/#{total_count})" if @verbose
+        begin
+          while true
+            n = workqueue.pop(true)
 
-          process_name(n, d_id)
-          d_id += @concurrency
+            $stderr.puts "#{n} (#{workqueue.length}/#{total_count})" if @verbose
+
+            process_name(n, d_id)
+            d_id += @concurrency
+          end
+        rescue ThreadError
+          # queue empty, exit.
         end
       end
     end
