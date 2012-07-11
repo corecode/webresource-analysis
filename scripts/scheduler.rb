@@ -23,7 +23,7 @@ class Scheduler
     count = 0
 
     kids = []
-    names.each_slice(names.size / @concurrency).each_with_index do |l, p_id|
+    names.each_slice((total_count / @concurrency) + 1).each_with_index do |l, p_id|
       kids << Thread.start(p_id) do |d_id|
         l.each do |n|
           @tm.synchronize do
