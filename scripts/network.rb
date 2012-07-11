@@ -50,7 +50,7 @@ class Domain
 
     @adblock_inflight.each do |url, actions|
       next if actions.empty?
-      puts "uncollected adblock url: #{actions.join(", ")} #{url}"
+      # $stderr.puts "uncollected adblock url: #{actions.join(", ")} #{url}"
     end
     
     @requests
@@ -161,7 +161,7 @@ class Domain
 
   def do_console_message(p)
     msg = p['message']['text']
-    m = msg.match(/^ABP: (pass|block)ing .*? to `(.+?)'(?:$|, )/)
+    m = msg.match(/^ABP: (pass|block)ing .*? to: (.+?)$/)
     return unless m
 
     action = m[1]

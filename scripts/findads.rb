@@ -3,39 +3,55 @@ $: << File.expand_path('..', $0)
 require 'network'
 require 'set'
 
+class Domain
+  Fields[:adstate] = :unclassified
+  Fields[:ad] = false
+end
+
 class AdFinder
   attr_accessor :adblock, :vanilla
 
   class Classify
-    attr_accessor :requests, :common, :ads, :ads_depend
-    attr_accessor :soft_common, :soft_ads, :soft_ads_depend, :unknown_ads, :unknown
-    attr_reader :original_count
+    Fields = %w{common ads soft_common soft_ads unknown_ads unknown}
+
+    attr_accessor :requests
+    attr_reader :original_count, :all
+    attr_accessor *Fields.map(&:to_sym)
 
     def initialize(dom)
       @requests = dom.requests
-      @common = []
-      @ads = []
-      @ads_depend = []
-      @soft_common = []
-      @soft_ads = []
-      @soft_ads_depend = []
-      @unknown_ads = []
-      @unknown = []
+      @all = @requests.dup
+      Fields.each do |f|
+        instance_variable_set('@'+f, [])
+      end
 
       # Make sure we don't lose anything on the way.
       @original_count = @requests.length
     end
 
     def stats
-      %w{common ads ads_depend soft_common soft_ads soft_ads_depend unknown_ads unknown}.inject({}) do |h, f|
-        h.update({f.to_sym => instance_variable_get('@'+f).length})
+      Fields.inject({}) do |h, f|
+        v = instance_variable_get('@'+f)
+        h.update({"#{f}_count" => v.length, "#{f}_size" => v.inject(0){|s, r| s+r[:encodedDataLength]}})
       end
     end
 
     def count
-      %w{common ads ads_depend soft_common soft_ads soft_ads_depend unknown_ads unknown}.inject(0) do |s, f|
+      Fields.inject(0) do |s, f|
         s + instance_variable_get('@' + f).length
       end
+    end
+
+    def assign_adstate!
+      Fields.each do |f|
+        is_ad = f.match(/^(?:unknown|.*ads)$/) != nil
+        list = instance_variable_get('@'+f)
+        list.each do |e|
+          e[:adstate] = f
+          e[:ad] = is_ad
+        end
+      end
+      @all
     end
   end
 
@@ -46,7 +62,7 @@ class AdFinder
   def split_url(url)
     m = url.match(/^(\w\w*):(?:\/\/)?([^:\/?#&]+)(?::(\d+))?([^?]+)?(\?.*)?$/)
     if not m
-      puts "can not split url: #{url}"
+      $stderr.puts "can not split url: #{url}"
     end
     return {
       :scheme => m[1],
@@ -222,29 +238,37 @@ end
 if __FILE__ == $0
   names = ARGV.map{|a| a.match(/^(.*?)-(?:adblock|vanilla)\.log$/) && $1}.compact.uniq
 
+  header = false
+
   names.each do |n|
     begin
       vanilla = Domain.new(n + "-vanilla.log")
       adblock = Domain.new(n + "-adblock.log")
     rescue Error::ENOENT
-      puts "cannot find pair for #{n}"
+      $stderr.puts "cannot find pair for #{n}"
     end
 
     adblock.process!
     vanilla.process!
 
     if adblock.requests.empty? || vanilla.requests.empty?
-      puts "skipping #{n} because of empty requests"
+      $stderr.puts "skipping #{n} because of empty requests"
       next
     end
 
     finder = AdFinder.new(adblock, vanilla)
     finder.classify
 
-    require 'pp'
-    puts n
-    [finder.adblock, finder.vanilla].each do |l|
-      pp l.stats
+    [[finder.adblock, "adblock"], [finder.vanilla, "vanilla"]].each do |l, mode|
+      s = l.stats
+      s["mode"] = mode
+      s["domain"] = n
+
+      if !header
+        header = true
+        puts s.keys.join("\t")
+      end
+      puts s.values.join("\t")
     end
   end
 end

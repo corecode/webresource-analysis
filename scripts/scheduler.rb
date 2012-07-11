@@ -1,31 +1,37 @@
 $: << File.expand_path('..', $0)
 
+require 'findads'
 require 'csvprint'
 require 'sqlprint'
 require 'xmlprint'
 
 class Scheduler
-  def initialize(concurrency=1, printers)
-    @concurrency = concurrency
+  def initialize(printers, opts={})
+    @concurrency = opts[:concurrency] || 1
+    @verbose = opts[:verbose] || false
     @p = printers
+    @tm = Mutex.new
   end
 
   def run(dir=".")
     STDOUT.sync = true
     files = Dir.glob(File.join(dir, '*.log'))
-    kids = []
-    tm = Mutex.new
-    files.each_slice(files.size / @concurrency).each_with_index do |l, p_id|
-      kids << Thread.start(p_id) do |d_id|
-        l.each do |d|
-          d = Domain.new(d, d_id)
-          data = d.process
 
-          tm.synchronize do
-            @p.each do |p|
-              p.add_domain(data)
-            end
+    names = files.map{|a| a.match(/^(.*?)-(?:adblock|vanilla)\.log$/) && $1}.compact.uniq
+
+    total_count = names.length
+    count = 0
+
+    kids = []
+    names.each_slice(names.size / @concurrency).each_with_index do |l, p_id|
+      kids << Thread.start(p_id) do |d_id|
+        l.each do |n|
+          @tm.synchronize do
+            count += 1
           end
+          $stderr.puts "#{n} (#{count}/#{total_count})" if @verbose
+
+          process_name(n, d_id)
           d_id += @concurrency
         end
       end
@@ -37,6 +43,37 @@ class Scheduler
       p.finish
     end
   end
+
+  def process_name(n, id)
+    begin
+      vanilla = Domain.new(n + "-vanilla.log", id)
+      adblock = Domain.new(n + "-adblock.log", id)
+    rescue Error::ENOENT
+      $stderr.puts "cannot find pair for #{n}"
+    end
+
+    vanilla.process!
+    adblock.process!
+
+    if adblock.requests.empty? || vanilla.requests.empty?
+      $stderr.puts "skipping #{n} because of empty requests"
+      return
+    end
+
+    finder = AdFinder.new(adblock, vanilla)
+    finder.classify
+
+    [[finder.adblock, @p["adblock"]], [finder.vanilla, @p["vanilla"]]].each do |l, printers|
+      next unless printers && !printers.empty?
+
+      l.assign_adstate!
+      @tm.synchronize do
+        printers.each do |p|
+          p.add_domain(l.all)
+        end
+      end
+    end
+  end
 end
 
 if $0 == __FILE__
@@ -45,41 +82,63 @@ if $0 == __FILE__
   opts = GetoptLong.new(
                         [ '--concurrency', '-c', GetoptLong::REQUIRED_ARGUMENT ],
                         [ '--output', '-o', GetoptLong::REQUIRED_ARGUMENT ],
+                        [ '--vanilla-output', GetoptLong::REQUIRED_ARGUMENT ],
+                        [ '--adblock-output', GetoptLong::REQUIRED_ARGUMENT ],
+                        [ '--verbose', '-v', GetoptLong::NO_ARGUMENT ],
                         )
 
-  concurrency = 1
-  printers = []
+  sched_opts = {}
+
+  printers = Hash.new{|h,k| h[k] = []}
   opts.each do |opt, arg|
     case opt
     when '--concurrency'
-      concurrency = arg.to_i
-    when '--output'
-      m = arg.match(/(?:([^:]+):)?((?:.*?)(?:[.]([^.]+))?)$/)
-      if !m || (!m[1] && !m[3])
-        $stdout.puts "output requires type specification, e.g. `sql:foo' or `foo.sql'"
+      sched_opts[:concurrency] = arg.to_i
+    when /--(.*)output/
+      if !$1.empty?
+        output_mode = [$1]
+      else
+        output_mode = ['vanilla', 'adblock']
+      end
+
+      m = arg.match(/(?:([^:]+):)?((.*?)([.]([^.]+))?)$/)
+      if !m || (!m[1] && !m[4])
+        $stderr.puts "output requires type specification, e.g. `sql:foo' or `foo.sql'"
         exit 1
       end
-      type = m[1] || m[3]
+      type = m[1] || m[5]
       begin
         p_class = Kernel.const_get("%sPrint" % type.capitalize)
       rescue NameError
-        $stdout.puts "invalid output printer `#{type}'"
+        $stderr.puts "invalid output printer `#{type}'"
         exit 1
       end
-      case m[2]
+
+      fname = m[2]
+      case fname
       when "", "-"
-        outf = $stdout
+        if output_mode.length != 1
+          $stderr.puts "can only do either adblock or vanilla when writing to stdout"
+          exit 1
+        end
+        printers[output_mode] << p_class.new
       else
-        outf = File.open(m[2], 'w')
+        output_mode.each do |m|
+          fname = "%s-%s%s" % [m[3], m, m[4]]
+          outf = File.open(fname, 'w')
+          printers[output_mode] << p_class.new(outf)
+        end
       end
-      printers << p_class.new(outf)
+    when '--verbose'
+      sched_opts[:verbose] = true
     end
   end
 
   if printers.empty?
-    printers << CsvPrint.new
+    $stderr.puts "need output specification"
+    exit 1
   end
 
-  s = Scheduler.new(concurrency, printers)
+  s = Scheduler.new(printers, sched_opts)
   s.run(*ARGV)
 end
