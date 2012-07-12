@@ -1,6 +1,7 @@
 $: << File.expand_path('..', $0)
 
 require 'thread'
+require 'timeout'
 
 require 'findads'
 require 'csvprint'
@@ -28,26 +29,71 @@ class Scheduler
 
     total_count = names.length
 
-    kids = []
+    kid_stat = {}
+    m = Mutex.new
+
+    kids = {}
     @concurrency.times do |p_id|
-      kids << Thread.start(p_id) do |d_id|
+      kids[p_id] = Thread.start(p_id) do |d_id|
+        thread_id = d_id
+
         begin
           while true
+            d_id += @concurrency
             n = workqueue.pop(true)
 
-            $stderr.puts "#{n} (#{workqueue.length}/#{total_count})" if @verbose
+            m.synchronize do
+              $stderr.puts "% 3d: % 5d/%d %s" % [thread_id, workqueue.length, total_count, n]
+              kid_stat[thread_id] = n
+            end
 
-            process_name(n, d_id)
-            d_id += @concurrency
+            begin
+              Timeout.timeout(60) do
+                process_name(n, d_id)
+              end
+            rescue Timeout::Error
+              $stderr.puts "% 3d: timeout processing %s" % [thread_id, n]
+              next
+            end
+
+            m.synchronize do
+              kid_stat.delete(thread_id)
+            end
           end
         rescue ThreadError
           # queue empty, exit.
         end
       end
     end
-    kids.each do |k|
-      k.join
+    # wait until we see stragglers
+    while !workqueue.empty?
+      sleep 1
     end
+
+    while !kids.empty?
+      sleep 5
+      kids_done = []
+      kids.each do |thread_id, td|
+        m.synchronize do
+          if !td.alive?
+            td.join
+            kids_done << thread_id
+          else
+            n = kid_stat[thread_id]
+
+            if !n
+              $stderr.puts "thread #{thread_id} alive, but not working?"
+            else
+              $stderr.puts "waiting for thread #{thread_id} processing #{n}"
+            end
+          end
+        end
+      end
+      kids_done.each do |thread_id|
+        kids.delete thread_id
+      end
+    end
+    
     @p.values.flatten.each do |p|
       p.finish
     end
