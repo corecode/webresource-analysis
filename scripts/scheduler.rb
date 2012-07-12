@@ -47,15 +47,23 @@ class Scheduler
               kid_stat[thread_id] = n
             end
 
+            r = nil
             begin
               Timeout.timeout(60) do
-                process_name(n, d_id)
+                r = process_name(n, d_id)
               end
             rescue Timeout::Error
               $stderr.puts "% 3d: timeout processing %s" % [thread_id, n]
               next
             end
 
+            @tm.synchronize do
+              r.each do |mode, dom|
+                @p[mode].each do |p|
+                  p.add_domain(dom)
+                end
+              end
+            end
             m.synchronize do
               kid_stat.delete(thread_id)
             end
@@ -117,17 +125,10 @@ class Scheduler
 
     finder = AdFinder.new(adblock, vanilla)
     finder.classify
+    finder.adblock.assign_adstate!
+    finder.vanilla.assign_adstate!
 
-    [[finder.adblock, @p["adblock"]], [finder.vanilla, @p["vanilla"]]].each do |l, printers|
-      next unless printers && !printers.empty?
-
-      l.assign_adstate!
-      @tm.synchronize do
-        printers.each do |p|
-          p.add_domain(l.all)
-        end
-      end
-    end
+    {"adblock" => finder.adblock.all, "vanilla" => finder.vanilla.all}
   end
 end
 
